@@ -1,25 +1,66 @@
-// 1. Tentukan Gambar Berdasarkan Mode
+// mptfa.script — autoscale + center (preserve aspect ratio)
+// Put this file in the theme folder alongside boot.png and shutdown.png.
+
+// Configuration
+allow_upscale = true;    // set to false to prevent enlarging images on bigger screens
+background_color_top = [0, 0, 0];    // RGB 0..1 or 0..255 depending on engine; 0,0,0 is safe
+background_color_bottom = [0, 0, 0];
+
 if (Plymouth.GetMode() == "boot") {
-    my_image = Image("boot.png");
+    img = Image("boot.png");
 } else {
-    // Shutdown dan Reboot masuk ke sini
-    my_image = Image("shutdown.png");
+    img = Image("shutdown.png");
 }
 
-// 2. Setup Sprite
-my_sprite = Sprite(my_image);
+spr = Sprite(img);
 
-// 3. Posisikan di Tengah Layar (Center)
-screen_width = Window.GetWidth();
-screen_height = Window.GetHeight();
-image_width = my_image.GetWidth();
-image_height = my_image.GetHeight();
+// screen and image sizes
+sw = Window.GetWidth();
+sh = Window.GetHeight();
+iw = img.GetWidth();
+ih = img.GetHeight();
 
-my_sprite.SetX((screen_width / 2) - (image_width / 2));
-my_sprite.SetY((screen_height / 2) - (image_height / 2));
+// protect against zero sizes
+if (iw <= 0 || ih <= 0) {
+    // fallback: just center sprite without scaling
+    spr.SetX((sw / 2) - (iw / 2));
+    spr.SetY((sh / 2) - (ih / 2));
+} else {
+    // compute scale to fit the screen while preserving aspect ratio
+    scale_x = sw / iw;
+    scale_y = sh / ih;
+    scale = scale_x < scale_y ? scale_x : scale_y;
 
-// 4. Background Item (Hitam kasta Elliot)
-Window.SetBackgroundTopColor(0, 0, 0); 
+    if (!allow_upscale && scale > 1.0) {
+        scale = 1.0;
+    }
 
-Window.SetBackgroundBottomColor(0, 0, 0);
+    target_w = Math.floor(iw * scale + 0.5);
+    target_h = Math.floor(ih * scale + 0.5);
 
+    // Try to scale the sprite/image. API differs between plymouth versions.
+    // We attempt several common options; if none exist, the image will remain original size but still be centered.
+    scaled = false;
+    if (spr.SetSize) {
+        // many engines expose Sprite.SetSize(width, height)
+        spr.SetSize(target_w, target_h);
+        scaled = true;
+    } else if (img.Scale) {
+        // some engines allow Image.Scale(width, height)
+        img.Scale(target_w, target_h);
+        // recreate sprite in case engine requires it
+        spr = Sprite(img);
+        scaled = true;
+    } else if (spr.SetTransform) {
+        // some engines support transforms (scale)
+        spr.SetTransform({ scaleX: scale, scaleY: scale });
+        scaled = true;
+    }
+    // center the sprite using the final target size (if scaling failed, target_w/target_h are still used to center original)
+    spr.SetX((sw / 2) - (target_w / 2));
+    spr.SetY((sh / 2) - (target_h / 2));
+}
+
+// Background: keep black by default; change above to match your artwork if desired
+Window.SetBackgroundTopColor(background_color_top[0], background_color_top[1], background_color_top[2]);
+Window.SetBackgroundBottomColor(background_color_bottom[0], background_color_bottom[1], background_color_bottom[2]);
