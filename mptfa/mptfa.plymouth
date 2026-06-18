@@ -1,0 +1,10 @@
+[Plymouth Theme]
+Name=mptfa
+Description=My Plymouth Theme For Archcraft - Static 1 Frame.
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/mptfa
+
+ScriptFile=/usr/share/plymouth/themes/mptfa/mptfa.script
+

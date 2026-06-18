@@ -1,0 +1,25 @@
+// 1. Tentukan Gambar Berdasarkan Mode
+if (Plymouth.GetMode() == "boot") {
+    my_image = Image("boot.png");
+} else {
+    // Shutdown dan Reboot masuk ke sini
+    my_image = Image("shutdown.png");
+}
+
+// 2. Setup Sprite
+my_sprite = Sprite(my_image);
+
+// 3. Posisikan di Tengah Layar (Center)
+screen_width = Window.GetWidth();
+screen_height = Window.GetHeight();
+image_width = my_image.GetWidth();
+image_height = my_image.GetHeight();
+
+my_sprite.SetX((screen_width / 2) - (image_width / 2));
+my_sprite.SetY((screen_height / 2) - (image_height / 2));
+
+// 4. Background Item (Hitam kasta Elliot)
+Window.SetBackgroundTopColor(0, 0, 0); 
+
+Window.SetBackgroundBottomColor(0, 0, 0);
+
