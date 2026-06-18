@@ -5,112 +5,83 @@ SPDX-License-Identifier: BSD-2-Clause
 
 Overview
 --------
-MPTFA is a simple, static (single-frame) Plymouth theme intended for Archcraft and other Linux distributions. It displays one image for boot and a different image for shutdown. The included example images are 1366×768; the script centers the image and can be extended to scale automatically.
+MPTFA is a simple Plymouth theme that displays a single image for boot and another for shutdown. This release adds automatic scaling so the theme adapts to different screen resolutions while preserving aspect ratio.
 
 Repository layout (recommended)
 - LICENSE
 - README.md
-- mptfa.plymouth
-- theme/
-  - mptfa.script
+- mptfa/
+  - mptfa.plymouth
+  - mptfa.script      ← autoscaling script (updated)
   - boot.png
   - shutdown.png
-- screenshots/
-  - boot-1366x768.png
-  - shutdown-1366x768.png
-- packaging/ (optional: PKGBUILD, debian/)
+- screenshots/ (optional)
 
 Files
 -----
-- `mptfa.plymouth` — Plymouth metadata (ImageDir, ScriptFile).
-- `theme/mptfa.script` — script engine file (selects boot/shutdown images and draws them).
-- `theme/boot.png`, `theme/shutdown.png` — image assets (must be present before installation).
+- `mptfa/mptfa.plymouth` — theme metadata (ImageDir, ScriptFile).
+- `mptfa/mptfa.script` — the script engine file. This version:
+  - chooses `boot.png` for Plymouth mode `boot`, otherwise `shutdown.png`,
+  - computes a scale factor to fit the image on screen while preserving aspect ratio,
+  - optionally prevents upscaling (configurable in the script),
+  - centers the image.
+- `mptfa/boot.png`, `mptfa/shutdown.png` — image assets (include before packaging).
 - `LICENSE` — BSD 2‑clause; Copyright (c) 2026 Arya.
 
-Installation (Arch / Archcraft)
-------------------------------
-1. Install plymouth:
-   sudo pacman -Syu plymouth
+Script behavior (autoscaling)
+-----------------------------
+- The updated script calculates a fit scale (min(screen_w / img_w, screen_h / img_h)) so the image will never be distorted.
+- Configuration at top of script:
+  - `allow_upscale = true` — set to `false` if you prefer images not to be enlarged on larger screens.
+- The script tries several common plymouth script API calls to resize (Sprite.SetSize, Image.Scale, Sprite.SetTransform). If your plymouth version does not support resizing, the script will still center the original image.
+- If you need exact API compatibility for your distribution's plymouth version, tell me the plymouth package version and I’ll adapt the script.
 
-2. Copy theme files:
+Installation (same as before)
+-----------------------------
+1. Copy the `mptfa` folder and `mptfa.plymouth` to `/usr/share/plymouth/themes/mptfa`:
+   ```bash
    sudo mkdir -p /usr/share/plymouth/themes/mptfa
-   sudo cp -r theme/* /usr/share/plymouth/themes/mptfa/
+   sudo cp -r mptfa/* /usr/share/plymouth/themes/mptfa/
    sudo cp mptfa.plymouth /usr/share/plymouth/themes/mptfa/
-
-3. Ensure the `plymouth` hook is in `/etc/mkinitcpio.conf` (before `filesystems`), e.g.:
+   ```
+2. Ensure `plymouth` appears in your initramfs hooks (e.g., `/etc/mkinitcpio.conf` for Arch):
+   ```
    HOOKS=(base udev plymouth filesystems ...)
-
-4. Rebuild initramfs:
-   sudo mkinitcpio -P
-
-5. Set the theme (if plymouth-set-default-theme is present):
+   ```
+3. Rebuild initramfs:
+   - Arch:
+     ```bash
+     sudo mkinitcpio -P
+     ```
+   - Debian/Ubuntu:
+     ```bash
+     sudo update-initramfs -u
+     ```
+4. Set default theme (if available):
+   ```bash
    sudo plymouth-set-default-theme mptfa
-   sudo mkinitcpio -P
+   sudo mkinitcpio -P   # Arch; run update-initramfs on Debian if needed
+   ```
 
-Installation (Debian / Ubuntu)
-------------------------------
-1. Install plymouth:
-   sudo apt update
-   sudo apt install plymouth plymouth-themes
-
-2. Copy theme files:
-   sudo mkdir -p /usr/share/plymouth/themes/mptfa
-   sudo cp -r theme/* /usr/share/plymouth/themes/mptfa/
-   sudo cp mptfa.plymouth /usr/share/plymouth/themes/mptfa/
-
-3. Set theme and update initramfs:
-   sudo plymouth-set-default-theme mptfa
-   sudo update-initramfs -u
-
-Notes on images
---------------
-- Name images exactly `boot.png` and `shutdown.png` and place them in the `theme/` directory.
-- The example images are 1366×768. On other resolutions the script centers them. If you want scaling for different screen sizes, see the "Script behavior" section below.
-- Legal: the supplied images resemble Windows BSoD. If you did not create them from scratch, consider modifying them to avoid potential trademark/copyright issues. If you own the images, state that in README and license them under BSD as well.
-
-Script behavior (mptfa.script)
-------------------------------
-- Default script selects `boot.png` when Plymouth mode is `boot`, otherwise uses `shutdown.png`.
-- Current basic script centers the image on screen.
-- To support multiple resolutions, extend the script to calculate a scaling ratio (preserve aspect ratio) and call sprite/image SetSize or Scale if the engine supports it. Example autoscaling logic is available in the repo (or I can add it on request).
-
-Packaging
----------
-Tarball (recommended for quick sharing)
-- Prepare directory `MPTFA-1.0/` with files and `theme/` containing both images.
-- Create tar.gz:
-  tar -czvf MPTFA-1.0.tar.gz MPTFA-1.0
-
-Arch package (PKGBUILD)
-- Create PKGBUILD that installs files to `/usr/share/plymouth/themes/mptfa`.
-- Optionally include a `.install` with a `post_install()` that runs `mkinitcpio -P`.
-
-Debian package (minimal)
-- Provide `debian/control`, and an executable `debian/postinst` that runs `update-initramfs -u` on configure.
-- Use `dpkg-buildpackage` or debhelper tooling to build.
-
-Permissions
------------
-After installing to /usr/share/plymouth/themes/mptfa, ensure files are owned by root and readable:
+Permissions & executable bit
+----------------------------
+Make the script executable and set ownership:
+```bash
 sudo chown -R root:root /usr/share/plymouth/themes/mptfa
 sudo chmod -R 644 /usr/share/plymouth/themes/mptfa/*
 sudo chmod 755 /usr/share/plymouth/themes/mptfa/*.script || true
+```
 
-Contributing
+Testing tips
 ------------
-- Add screenshots under `/screenshots`.
-- For multi-resolution support, include alternate images (e.g., `boot-1920x1080.png`) and update `mptfa.script` to select based on `Window.GetWidth()`/`GetHeight()`.
-- Open issues or PRs for bug fixes and improvements.
+- Test in a VM first. Install plymouth on a test VM, copy the theme, set it and rebuild initramfs, then reboot the VM to see the splash.
+- If the image is not scaled and remains too large or too small, check your plymouth version and logs (dmesg or journalctl) and let me know the plymouth package version so I can adjust method calls.
 
-Troubleshooting
----------------
-- If theme doesn’t appear: confirm files are in `/usr/share/plymouth/themes/mptfa` and `mptfa.plymouth` is present.
-- If plymouth-set-default-theme not found: use the mkinitcpio method and ensure the plymouth hook is present.
-- If images don’t scale: check your plymouth script engine version for supported sprite/image methods (SetSize, Scale).
-
-License
--------
-This project is licensed under the BSD 2-clause license. See the `LICENSE` file.
+Image & licensing note
+----------------------
+- Name your images `boot.png` and `shutdown.png`.
+- If you made the images yourself, license them under the project BSD license (note asset licensing in README if desired).
+- If images are derived from Windows BSoD artwork, consider altering design to avoid potential trademark/copyright issues.
 
 Author
 ------
